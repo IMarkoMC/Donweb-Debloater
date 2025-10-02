@@ -133,6 +133,24 @@ echo "Deleting the nonsense they add to ~/.bashrc. A backup was saved as bashrc.
 
 echo "Please log in again for the bashrc changes to take effect :)"
 
+read -rp "Do you want to disable/mask getty@tty1 (local console)? [y/N]: " ans
+if [[ "$ans" =~ ^[Yy]$ ]]; then
+    systemctl disable --now getty@tty1.service || true
+    systemctl mask getty@tty1.service || true
+    echo "getty@tty1 disabled & masked."
+else
+    echo "Skipped getty@tty1."
+fi
+
+read -rp "Do you want to disable/mask serial-getty@ttyS0 (serial console)? [y/N]: " ans
+if [[ "$ans" =~ ^[Yy]$ ]]; then
+    systemctl disable --now serial-getty@ttyS0.service || true
+    systemctl mask serial-getty@ttyS0.service || true
+    echo "serial-getty@ttyS0 disabled & masked."
+else
+    echo "Skipped serial-getty@ttyS0."
+fi
+
 read -rp "Do you want to change the root password now? (y/n): " answer
 case "$answer" in
     [Yy]* )
