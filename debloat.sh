@@ -9,6 +9,7 @@ This script will:
   - modify /etc/hosts, /etc/ssh/sshd_config, and your ~/.bashrc
   - remove ~/.ssh/authorized_keys and other files
   - disable VNC or other means of accesing the vm from a console
+  - show a message in VNC/Virtual consoles
   
 Proceeding may lock you out if you don't have key-based SSH access.
 MSG
@@ -135,11 +136,12 @@ echo "Deleting the nonsense they add to ~/.bashrc. A backup was saved as bashrc.
 
 echo "Please log in again for the bashrc changes to take effect :)"
 
+
 read -rp "Do you want to disable/mask getty@tty1 (local console)? [y/N]: " ans
 if [[ "$ans" =~ ^[Yy]$ ]]; then
     systemctl disable --now getty@tty1.service || true
     systemctl mask getty@tty1.service || true
-    echo "getty@tty1 disabled & masked."
+    echo "getty@tty1 disabled and masked."
 else
     echo "Skipped getty@tty1."
 fi
@@ -148,10 +150,79 @@ read -rp "Do you want to disable/mask serial-getty@ttyS0 (serial console)? [y/N]
 if [[ "$ans" =~ ^[Yy]$ ]]; then
     systemctl disable --now serial-getty@ttyS0.service || true
     systemctl mask serial-getty@ttyS0.service || true
-    echo "serial-getty@ttyS0 disabled & masked."
+    echo "serial-getty@ttyS0 disabled and masked."
 else
     echo "Skipped serial-getty@ttyS0."
 fi
+
+cat >/usr/local/sbin/console-disabler.sh <<EOF
+#!/bin/bash
+set -euo pipefail
+TTY="${1:-tty1}"
+MSG="=== CONSOLE ACCESS DISABLED ===
+This virtual console is disabled. If you are the owner, connect via SSH with your key.
+Unauthorized access attempts are logged and will be investigated.
+
+
+"
+
+for i in 1 2 3; do
+  printf "%s" "$MSG" > "/dev/$TTY" 2>/dev/null || true
+  sleep 2
+done
+
+sleep infinity
+
+EOF
+chmod 755 /usr/local/sbin/console-disabler.sh
+echo "Banner script created at /usr/local/sbin/console-disabler.sh"
+
+# === Override getty@? ===
+read -rp "Override getty@.service (tty1 etc)? [y/N]: " ov_getty
+if [[ "\$ov_getty" =~ ^[Yy]$ ]]; then
+  cat >/etc/systemd/system/getty@.service <<'EOF'
+[Unit]
+Description=Console disabler
+Before=getty.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/console-disabler.sh %I
+StandardInput=tty
+StandardOutput=tty
+Restart=no
+
+[Install]
+WantedBy=getty.target
+EOF
+  echo "The service getty@* was overwritten."
+fi
+
+read -rp "Override serial-getty@.service (ttyS0 etc)? [y/N]: " ov_serial
+if [[ "\$ov_serial" =~ ^[Yy]$ ]]; then
+  mkdir -p /etc/systemd/system/serial-getty@.service.d
+  cat >/etc/systemd/system/serial-getty@.service.d/override.conf <<'EOF'
+[Service]
+ExecStart=
+ExecStart=/usr/local/sbin/console-disabled.sh %I
+Type=simple
+StandardInput=tty
+StandardOutput=tty
+Restart=no
+EOF
+ echo "The service serial-getty@* was overwritten."
+fi
+
+systemctl daemon-reload
+
+if [[ "\$ov_getty" =~ ^[Yy]$ ]]; then
+  systemctl restart getty@tty1.service || true
+fi
+
+if [[ "\$ov_serial" =~ ^[Yy]$ ]]; then
+  systemctl restart serial-getty@ttyS0.service || true
+fi
+
 
 read -rp "Do you want to change the root password now? (y/n): " answer
 case "$answer" in
