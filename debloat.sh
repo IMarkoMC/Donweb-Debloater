@@ -5,9 +5,11 @@ WARNING:
 This script will:
   - stop/disable services and remove packages (snmpd, rsyslog, postfix, collectd, qemu-guest-agent, etc.)
   - enforce IPv6 drop and disable IPv6 via sysctl
+  - drop all ICMP traffic
   - modify /etc/hosts, /etc/ssh/sshd_config, and your ~/.bashrc
   - remove ~/.ssh/authorized_keys and other files
-
+  - disable VNC or other means of accesing the vm from a console
+  
 Proceeding may lock you out if you don't have key-based SSH access.
 MSG
 
